@@ -19,7 +19,7 @@ func InitClient() {
 func CreateCompletion(msg string) string {
 	req := gogpt.CompletionRequest{
 		Model:       gogpt.GPT3TextDavinci003,
-		MaxTokens:   4000,
+		MaxTokens:   1000,
 		Prompt:      msg,
 		Temperature: 0.7,
 		TopP:        1,
@@ -30,4 +30,21 @@ func CreateCompletion(msg string) string {
 	}
 	fmt.Println(resp.Choices[0].Text)
 	return resp.Choices[0].Text
+}
+
+func CreateEdit(output string, instruction string) (string, error) {
+	model := "text-davinci-edit-001"
+	req := gogpt.EditsRequest{
+		Model:       &model,
+		Input:       output,
+		Instruction: instruction,
+		N:           1,
+		Temperature: 0.7,
+		TopP:        1,
+	}
+	resp, err := client.Edits(ctx, req)
+	if err != nil {
+		return "", err
+	}
+	return resp.Choices[0].Text, nil
 }
