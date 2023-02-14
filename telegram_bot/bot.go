@@ -37,6 +37,8 @@ func RunBot(telegram_bot_token string) {
 		if update.Message == nil && update.EditedMessage == nil {
 			continue
 		}
+		action := tgbotapi.NewChatAction(update.Message.Chat.ID, "typing")
+		bot.Send(action)
 		msg := Handler(&update)
 		bot.Send(msg)
 	}
@@ -44,10 +46,13 @@ func RunBot(telegram_bot_token string) {
 }
 
 func Handler(update *tgbotapi.Update) tgbotapi.MessageConfig {
-
 	if update.Message != nil {
 		if update.Message.IsCommand() {
 			text := update.Message.Text[1:]
+			if text == "start" {
+				return MainMenu(update.Message.Chat.ID)
+			}
+
 			commands, err := bot.GetMyCommands()
 			if err != nil {
 				return tgbotapi.NewMessage(update.Message.Chat.ID, err.Error())
@@ -74,4 +79,17 @@ func Handler(update *tgbotapi.Update) tgbotapi.MessageConfig {
 	}
 
 	return tgbotapi.NewMessage(update.Message.Chat.ID, "Error")
+}
+
+func MainMenu(chatID int64) tgbotapi.MessageConfig {
+	text := "*Main Menu*\n" + "*Completion* - _Creates a completion for the provided prompt and parameters_\n" + "*Edit* - _Creates a new edit for the provided input, instruction, and parameters._\n"
+	btn1 := tgbotapi.NewInlineKeyboardButtonData("Completion", "completion")
+	btn2 := tgbotapi.NewInlineKeyboardButtonData("Edit", "edit")
+	row := tgbotapi.NewInlineKeyboardRow(btn1, btn2)
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(row)
+
+	msg := tgbotapi.NewMessage(chatID, text)
+	msg.ReplyMarkup = keyboard
+	msg.ParseMode = "Markdown"
+	return msg
 }
