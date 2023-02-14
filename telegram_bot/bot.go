@@ -22,7 +22,7 @@ func RunBot(telegram_bot_token string) {
 	log.Printf("Authorized on account %s", bot.Self.UserName)
 
 	u := tgbotapi.NewUpdate(0)
-	u.Timeout = 3600
+	u.Timeout = 600
 
 	updates := bot.GetUpdatesChan(u)
 
@@ -34,11 +34,6 @@ func RunBot(telegram_bot_token string) {
 	// hint the bot server
 
 	for update := range updates {
-		if update.Message == nil && update.EditedMessage == nil {
-			continue
-		}
-		action := tgbotapi.NewChatAction(update.Message.Chat.ID, "typing")
-		bot.Send(action)
 		msg := Handler(&update)
 		bot.Send(msg)
 	}
@@ -47,6 +42,8 @@ func RunBot(telegram_bot_token string) {
 
 func Handler(update *tgbotapi.Update) tgbotapi.MessageConfig {
 	if update.Message != nil {
+		action := tgbotapi.NewChatAction(update.Message.Chat.ID, "typing")
+		bot.Send(action)
 		if update.Message.IsCommand() {
 			text := update.Message.Text[1:]
 			if text == "start" {
@@ -64,6 +61,9 @@ func Handler(update *tgbotapi.Update) tgbotapi.MessageConfig {
 				}
 			}
 		}
+		if update.Message.Text == "completion" {
+			return tgbotapi.NewMessage(update.Message.Chat.ID, "Enter the prompt")
+		}
 		reply := chatgpt.CreateCompletion(update.Message.Text)
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, reply)
 		// msg.ReplyToMessageID = update.Message.MessageID
@@ -72,13 +72,22 @@ func Handler(update *tgbotapi.Update) tgbotapi.MessageConfig {
 	}
 
 	if update.EditedMessage != nil {
+		action := tgbotapi.NewChatAction(update.EditedMessage.Chat.ID, "typing")
+		bot.Send(action)
 		relpy := chatgpt.CreateCompletion(update.EditedMessage.Text)
 		msg := tgbotapi.NewMessage(update.EditedMessage.Chat.ID, relpy)
 		msg.ReplyToMessageID = update.EditedMessage.MessageID
 		return msg
 	}
 
-	return tgbotapi.NewMessage(update.Message.Chat.ID, "Error")
+	if update.CallbackQuery != nil {
+		if update.CallbackQuery.Data == "completion" {
+			fmt.Println("completion")
+			return tgbotapi.NewMessage(update.CallbackQuery.From.ID, "Enter the prompt")
+		}
+	}
+
+	return tgbotapi.NewMessage(0, "Error")
 }
 
 func MainMenu(chatID int64) tgbotapi.MessageConfig {
