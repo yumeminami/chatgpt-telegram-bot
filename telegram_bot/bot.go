@@ -10,6 +10,13 @@ import (
 )
 
 var bot *tgbotapi.BotAPI
+var msgMap map[int]string
+
+const (
+	MainMenuText = "*Main Menu*\n" +
+		"*Completion* - _Just enter the prompt_\n" +
+		"*Edit* - _Reply the to message as input with message as instruction_\n"
+)
 
 func RunBot(telegram_bot_token string) {
 	var err error
@@ -31,7 +38,7 @@ func RunBot(telegram_bot_token string) {
 	time.Sleep(time.Millisecond * 500)
 	updates.Clear()
 
-	// hint the bot server
+	msgMap = make(map[int]string)
 
 	for update := range updates {
 		msg := Handler(&update)
@@ -61,12 +68,22 @@ func Handler(update *tgbotapi.Update) tgbotapi.MessageConfig {
 				}
 			}
 		}
-		if update.Message.Text == "completion" {
-			return tgbotapi.NewMessage(update.Message.Chat.ID, "Enter the prompt")
+		if update.Message.ReplyToMessage != nil {
+			fmt.Println("OK")
+			if text, ok := msgMap[update.Message.ReplyToMessage.MessageID-1]; ok {
+				reply, err := chatgpt.CreateEdit(text, update.Message.Text)
+				if err != nil {
+					return tgbotapi.NewMessage(update.Message.Chat.ID, err.Error())
+				}
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, reply)
+				msgMap[update.Message.MessageID] = reply
+				return msg
+			}
 		}
+		fmt.Println(update.Message.Text)
 		reply := chatgpt.CreateCompletion(update.Message.Text)
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, reply)
-		// msg.ReplyToMessageID = update.Message.MessageID
+		msgMap[update.Message.MessageID] = reply
 		return msg
 
 	}
@@ -81,9 +98,11 @@ func Handler(update *tgbotapi.Update) tgbotapi.MessageConfig {
 	}
 
 	if update.CallbackQuery != nil {
-		if update.CallbackQuery.Data == "completion" {
-			fmt.Println("completion")
+		switch update.CallbackQuery.Data {
+		case "completion":
 			return tgbotapi.NewMessage(update.CallbackQuery.From.ID, "Enter the prompt")
+		case "edit":
+			return tgbotapi.NewMessage(update.CallbackQuery.From.ID, "Reply the Message")
 		}
 	}
 
@@ -91,7 +110,7 @@ func Handler(update *tgbotapi.Update) tgbotapi.MessageConfig {
 }
 
 func MainMenu(chatID int64) tgbotapi.MessageConfig {
-	text := "*Main Menu*\n" + "*Completion* - _Creates a completion for the provided prompt and parameters_\n" + "*Edit* - _Creates a new edit for the provided input, instruction, and parameters._\n"
+	text := MainMenuText
 	btn1 := tgbotapi.NewInlineKeyboardButtonData("Completion", "completion")
 	btn2 := tgbotapi.NewInlineKeyboardButtonData("Edit", "edit")
 	row := tgbotapi.NewInlineKeyboardRow(btn1, btn2)
